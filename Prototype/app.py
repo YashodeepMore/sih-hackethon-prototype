@@ -44,16 +44,16 @@ Instructions:
 
 Return the output in JSON format:
 
-{
+{{
 "Generated_SQL": "<SQL query here>",
 "Explanation": "<plain-text explanation here>"
-}
+}}
 
 User Query: {user_query}
 """
 
 prompt = PromptTemplate(input_variables=["user_query"], template=template_str)
-chain = LLMChain(prompt=prompt, llm=llm)
+chain = prompt | llm=llm
 
 # ------------------------------
 # Connect to SQLite database (already stored)
