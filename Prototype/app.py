@@ -1,15 +1,12 @@
 import os
+import json
+import pandas as pd
+import sqlite3
+from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
-from langchain.chains import LLMChain
-import pandas as pd
-import sqlite3
-import json
-from datetime import datetime, timedelta
-import re
-from flask import Flask, request, jsonify
-
+from langchain_core.output_parsers import JsonOutputParser # <<< CHANGED: Import the JSON parser
 
 # ------------------------------
 # Load environment
@@ -34,7 +31,7 @@ You are an AI assistant for ARGO float data. The database table is `argo_data` w
 uid (INT), platform_number (INT), cycle_number (INT), latitude (FLOAT),
 longitude (FLOAT), pressure (FLOAT), temperature (FLOAT), salinity (FLOAT), juld (FLOAT).
 
-Note: The 'juld' column represents days since 1950-01-01 (Julian Day). 
+Note: The 'juld' column represents days since 1950-01-01 (Julian Day).
 - If the user asks for a specific date, convert it to juld and select all rows for that date (include fractional days).
 - If no date is mentioned, do not filter by juld.
 
@@ -42,7 +39,7 @@ Instructions:
 1. Generate a SQL query that retrieves the requested data.
 2. Generate a simple, human-readable explanation of the query result in no more than 100 words.
 
-Return the output in JSON format:
+Return the output in JSON format only, with no other text before or after the JSON object.
 
 {{
 "Generated_SQL": "<SQL query here>",
@@ -53,50 +50,56 @@ User Query: {user_query}
 """
 
 prompt = PromptTemplate(input_variables=["user_query"], template=template_str)
-chain = prompt | llm=llm
+
+# <<< CHANGED: Define the parser and chain correctly
+parser = JsonOutputParser()
+chain = prompt | llm | parser
 
 # ------------------------------
-# Connect to SQLite database (already stored)
+# Connect to SQLite database
 # ------------------------------
-# Assume you have already created 'argo_data.db' and populated 'argo_data' table
-conn = sqlite3.connect("Prototype/argo_data.db")  # persistent DB
+# Make sure the path is correct relative to where you run the script
+conn = sqlite3.connect("Prototype/argo_data.db")
 
 # ------------------------------
 # Flask App
 # ------------------------------
 app = Flask(__name__)
 
-@app.route("/query", methods=["GET","POST"])
+@app.route("/query", methods=["POST"]) # <<< CHANGED: POST is more appropriate for sending data
 def query_argo():
+    # <<< CHANGED: Get the query from the request body
     data = request.get_json()
-    user_query = data.get("query", "")
+    if not data or "query" not in data:
+        return jsonify({"error": "Missing 'query' in request body"}), 400
+    user_query = data.get("query")
 
-    # Run LLM chain
-    response = chain.invoke({"user_query": user_query})
-    response_text = response.content if hasattr(response, "content") else str(response)
-    response_dict = json.loads(response_text)
-    
-    sql_query = response_dict["Generated_SQL"].strip()
-    explanation = response_dict["Explanation"].strip()
-
-    # Execute SQL
     try:
+        # Run LLM chain - it now directly returns a dictionary
+        response_dict = chain.invoke({"user_query": user_query}) # <<< CHANGED
+
+        sql_query = response_dict["Generated_SQL"].strip()
+        explanation = response_dict["Explanation"].strip()
+
+        # Execute SQL
         result_df = pd.read_sql(sql_query, conn)
+
+        # Prepare JSON response
+        response_json = {
+            "data": result_df.to_dict(orient="records"),
+            "explanation": explanation,
+            "generated_sql": sql_query
+        }
+
+        return jsonify(response_json)
+
     except Exception as e:
-        return jsonify({"error": str(e), "sql_query": sql_query}), 400
-
-    # Prepare JSON response
-    response_json = {
-        "data": result_df.to_dict(orient="records"),
-        "explanation": explanation,
-        "generated_sql": sql_query
-    }
-
-    return jsonify(response_json)
+        # Generic error handler for LLM or SQL issues
+        return jsonify({"error": str(e)}), 500
 
 # ------------------------------
 # Run Flask
 # ------------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port, debug=True)

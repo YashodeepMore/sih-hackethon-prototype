@@ -2,7 +2,7 @@ import requests
 
 url = "https://sih-hackethon-prototype.onrender.com/"
 payload = {
-    "query": "Show me temperature and salinity for 2003-01-10"
+    "query": "Show me temperature and salinity for cycle 224"
 }
 
 response = requests.post(url, json=payload)
