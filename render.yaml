@@ -4,7 +4,7 @@ services:
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: python Prototype/openRouter_using_langchain.py
+    startCommand: python app.py
     envVars:
       - key: OPENROUTER_API_KEY
         sync: false

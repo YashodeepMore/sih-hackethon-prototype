@@ -1,2 +1,2 @@
-web: gunicorn -w 4 Prototype.app:app
+web: gunicorn app:app
 

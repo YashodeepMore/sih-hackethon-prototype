@@ -59,7 +59,7 @@ chain = prompt | llm | parser
 # Connect to SQLite database
 # ------------------------------
 # Make sure the path is correct relative to where you run the script
-conn = sqlite3.connect("Prototype/argo_data.db")
+conn = sqlite3.connect("argo_data.db")
 
 # ------------------------------
 # Flask App
@@ -69,10 +69,11 @@ app = Flask(__name__)
 @app.route("/query", methods=["POST"]) # <<< CHANGED: POST is more appropriate for sending data
 def query_argo():
     # <<< CHANGED: Get the query from the request body
-    data = request.get_json()
-    if not data or "query" not in data:
-        return jsonify({"error": "Missing 'query' in request body"}), 400
-    user_query = data.get("query")
+    # data = request.get_json()
+    # if not data or "query" not in data:
+    #     return jsonify({"error": "Missing 'query' in request body"}), 400
+    # user_query = data.get("query")
+    user_query = "Show me temperature and salinity for cycle 224"
 
     try:
         # Run LLM chain - it now directly returns a dictionary

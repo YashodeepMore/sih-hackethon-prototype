@@ -1,6 +1,6 @@
 import requests
 
-url = "https://sih-hackethon-prototype.onrender.com/"
+url = "https://sih-hackethon-prototype.onrender.com/query"
 payload = {
     "query": "Show me temperature and salinity for cycle 224"
 }
