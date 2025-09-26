@@ -6,7 +6,7 @@ from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
-from langchain_core.output_parsers import JsonOutputParser # <<< CHANGED: Import the JSON parser
+from langchain_core.output_parsers import JsonOutputParser
 
 # ------------------------------
 # Load environment
@@ -50,34 +50,40 @@ User Query: {user_query}
 """
 
 prompt = PromptTemplate(input_variables=["user_query"], template=template_str)
-
-# <<< CHANGED: Define the parser and chain correctly
 parser = JsonOutputParser()
 chain = prompt | llm | parser
 
 # ------------------------------
-# Connect to SQLite database
+# <<< FIX: Connect to database conditionally for Render vs. Local >>>
 # ------------------------------
-# Make sure the path is correct relative to where you run the script
-conn = sqlite3.connect("argo_data.db")
+# Check if the app is running on the Render platform
+if os.getenv("RENDER"):
+    # On Render, use the persistent disk path
+    DATA_DIR = "/var/data"
+    DB_PATH = os.path.join(DATA_DIR, "argo_data.db")
+    os.makedirs(DATA_DIR, exist_ok=True)
+else:
+    # Locally, use the database file in the same directory as the app
+    DB_PATH = "argo_data.db"
+
+conn = sqlite3.connect(DB_PATH)
 
 # ------------------------------
 # Flask App
 # ------------------------------
 app = Flask(__name__)
 
-@app.route("/query", methods=["POST"]) # <<< CHANGED: POST is more appropriate for sending data
+@app.route("/query", methods=["POST"])
 def query_argo():
-    # <<< CHANGED: Get the query from the request body
-    # data = request.get_json()
-    # if not data or "query" not in data:
-    #     return jsonify({"error": "Missing 'query' in request body"}), 400
-    # user_query = data.get("query")
-    user_query = "Show me temperature and salinity for cycle 224"
+    # Get the query from the request body
+    data = request.get_json()
+    if not data or "query" not in data:
+        return jsonify({"error": "Missing 'query' in request body"}), 400
+    user_query = data.get("query")
 
     try:
-        # Run LLM chain - it now directly returns a dictionary
-        response_dict = chain.invoke({"user_query": user_query}) # <<< CHANGED
+        # Run LLM chain
+        response_dict = chain.invoke({"user_query": user_query})
 
         sql_query = response_dict["Generated_SQL"].strip()
         explanation = response_dict["Explanation"].strip()
@@ -95,12 +101,17 @@ def query_argo():
         return jsonify(response_json)
 
     except Exception as e:
-        # Generic error handler for LLM or SQL issues
-        return jsonify({"error": str(e)}), 500
+        # Log the full error to the console for easier debugging on Render
+        print(f"An error occurred: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": "An internal error occurred. Check the server logs."}), 500
 
 # ------------------------------
-# Run Flask
+# Run Flask (for local testing only)
 # ------------------------------
 if __name__ == "__main__":
+    # This block does not run on Render (Gunicorn is used instead).
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
