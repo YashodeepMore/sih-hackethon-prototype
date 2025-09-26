@@ -1,0 +1,6 @@
+flask
+pandas
+python-dotenv
+langchain
+langchain-openai
+gunicorn
