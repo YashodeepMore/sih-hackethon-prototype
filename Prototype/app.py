@@ -66,7 +66,7 @@ conn = sqlite3.connect("Prototype/argo_data.db")  # persistent DB
 # ------------------------------
 app = Flask(__name__)
 
-@app.route("/query", methods=["POST"])
+@app.route("/query", methods=["GET","POST"])
 def query_argo():
     data = request.get_json()
     user_query = data.get("query", "")
